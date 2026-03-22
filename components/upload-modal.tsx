@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload, X, ImageIcon } from "lucide-react";
 import Image from "next/image";
 import { mockUpload } from "@/lib/data";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured, uploadPhoto } from "@/lib/photos";
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -21,6 +23,7 @@ export function UploadModal({
   const [progress, setProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const reset = useCallback(() => {
@@ -29,6 +32,7 @@ export function UploadModal({
     setProgress(0);
     setIsUploading(false);
     setIsDragging(false);
+    setUploadError(null);
   }, []);
 
   const handleClose = useCallback(() => {
@@ -38,9 +42,15 @@ export function UploadModal({
   }, [isUploading, reset, onClose]);
 
   const handleFile = useCallback((selectedFile: File) => {
-    if (!selectedFile.type.startsWith("image/")) return;
+    if (!selectedFile.type.startsWith("image/")) {
+      setUploadError("Please choose an image file.");
+      return;
+    }
+    setUploadError(null);
     setFile(selectedFile);
     const reader = new FileReader();
+    reader.onerror = () =>
+      setUploadError("Could not load preview. Try another file.");
     reader.onload = (e) => setPreview(e.target?.result as string);
     reader.readAsDataURL(selectedFile);
   }, []);
@@ -84,15 +94,35 @@ export function UploadModal({
     if (!file) return;
     setIsUploading(true);
     setProgress(0);
+    setUploadError(null);
     try {
-      await mockUpload(file, setProgress);
+      if (isSupabaseConfigured()) {
+        const supabase = createClient();
+        await uploadPhoto(supabase, file, setProgress);
+      } else {
+        await mockUpload(file, setProgress);
+      }
       onUploadComplete();
       reset();
       onClose();
-    } catch {
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Upload failed. Check your connection and try again.";
+      setUploadError(message);
       setIsUploading(false);
     }
   }, [file, onUploadComplete, reset, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, handleClose]);
 
   if (!isOpen) return null;
 
@@ -125,6 +155,15 @@ export function UploadModal({
         <h2 className="mb-6 text-xl font-semibold text-card-foreground">
           Upload Photo
         </h2>
+
+        {uploadError && (
+          <p
+            className="mb-4 rounded-[var(--radius)] border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+            role="alert"
+          >
+            {uploadError}
+          </p>
+        )}
 
         {/* Drop zone or preview */}
         {!preview ? (
@@ -169,6 +208,7 @@ export function UploadModal({
                 src={preview}
                 alt="Upload preview"
                 fill
+                unoptimized
                 className="object-cover"
               />
             </div>

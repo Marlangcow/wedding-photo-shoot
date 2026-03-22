@@ -4,6 +4,12 @@ export interface Photo {
   alt: string;
   uploadDate: string;
   status: "approved" | "rejected" | "pending";
+  /** Supabase Storage object path when uploaded to bucket `wedding-photos` */
+  storagePath?: string | null;
+}
+
+export function filterApprovedPhotos(photos: Photo[]): Photo[] {
+  return photos.filter((p) => p.status === "approved");
 }
 
 export const dummyPhotos: Photo[] = [

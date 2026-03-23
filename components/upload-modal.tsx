@@ -6,6 +6,7 @@ import Image from "next/image";
 import { mockUpload } from "@/lib/data";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured, uploadPhoto } from "@/lib/photos";
+import { uploadPhotoLocal } from "@/app/actions";
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -100,7 +101,12 @@ export function UploadModal({
         const supabase = createClient();
         await uploadPhoto(supabase, file, setProgress);
       } else {
-        await mockUpload(file, setProgress);
+        const interval = setInterval(() => setProgress(p => Math.min(p + 20, 90)), 100);
+        const formData = new FormData();
+        formData.append("file", file);
+        await uploadPhotoLocal(formData);
+        clearInterval(interval);
+        setProgress(100);
       }
       onUploadComplete();
       reset();
@@ -112,10 +118,13 @@ export function UploadModal({
           : typeof err === "object" && err && "message" in err
             ? String((err as { message?: unknown }).message ?? "")
             : "";
-      setUploadError(
-        message ||
-          "Upload failed. Check your connection, bucket policy, and try again."
-      );
+
+      const errorMsg = message.toLowerCase();
+      if (errorMsg.includes("body exceeded") || errorMsg.includes("large")) {
+        setUploadError("업로드 실패: 사진 용량이 제한(10MB)을 초과했습니다. 더 작은 이미지를 선택해주세요.");
+      } else {
+        setUploadError("업로드에 실패했습니다. 사진 용량이 너무 크거나 인터넷 연결이 불안정할 수 있습니다. 다시 시도해주세요.");
+      }
       setIsUploading(false);
     }
   }, [file, onUploadComplete, reset, onClose]);
@@ -132,17 +141,17 @@ export function UploadModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-neutral-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-foreground/40 backdrop-blur-sm"
+        className="absolute inset-0"
         onClick={handleClose}
         aria-hidden="true"
       />
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-lg rounded-[var(--radius)] bg-card p-6 shadow-xl sm:p-8"
+        className="relative bg-white rounded-[2rem] p-8 max-w-sm w-full shadow-2xl transform transition-all animate-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
         aria-label="Upload photo"
@@ -151,19 +160,18 @@ export function UploadModal({
         <button
           onClick={handleClose}
           disabled={isUploading}
-          className="absolute right-4 top-4 rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+          className="absolute right-4 top-4 rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors disabled:opacity-50"
           aria-label="Close upload dialog"
         >
-          <X className="h-5 w-5" />
+          <X className="h-5 w-5" strokeWidth={2} />
         </button>
 
-        <h2 className="mb-6 text-xl font-semibold text-card-foreground">
-          Upload Photo
-        </h2>
+        <h3 className="text-2xl font-semibold text-neutral-900 mb-2 mt-2 text-center">사진 올리기</h3>
+        <p className="text-sm text-neutral-500 text-center mb-8">가장 빛나던 순간을 공유해 주세요.</p>
 
         {uploadError && (
           <p
-            className="mb-4 rounded-[var(--radius)] border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+            className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 text-center"
             role="alert"
           >
             {uploadError}
@@ -176,27 +184,19 @@ export function UploadModal({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            className={`flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 transition-colors ${
+            onClick={() => fileInputRef.current?.click()}
+            className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
               isDragging
-                ? "border-accent bg-accent/5"
-                : "border-border bg-muted/50"
+                ? "border-[#0071E3] bg-[#0071E3]/5"
+                : "border-neutral-200 bg-neutral-50 hover:bg-neutral-100"
             }`}
           >
-            <div className="mb-4 rounded-full bg-muted p-3">
-              <Upload className="h-6 w-6 text-muted-foreground" />
+            <div className="mb-4 rounded-full bg-white shadow-sm p-3">
+              <Upload className="h-6 w-6 text-[#0071E3]" />
             </div>
-            <p className="mb-1 text-sm font-medium text-card-foreground">
-              Drag and drop your photo here
+            <p className="mb-1 text-sm text-neutral-600 font-medium">
+              클릭하여 앨범에서 선택
             </p>
-            <p className="mb-4 text-xs text-muted-foreground">
-              or click the button below
-            </p>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-[var(--radius)] bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Select Photo
-            </button>
             <input
               ref={fileInputRef}
               type="file"
@@ -240,20 +240,20 @@ export function UploadModal({
             )}
 
             {/* Actions */}
-            <div className="flex gap-3">
-              <button
-                onClick={handleClose}
-                disabled={isUploading}
-                className="flex-1 rounded-[var(--radius)] border border-border px-4 py-2.5 text-sm font-medium text-card-foreground transition-colors hover:bg-muted disabled:opacity-50"
-              >
-                Cancel
-              </button>
+            <div className="flex flex-col gap-3 mt-4">
               <button
                 onClick={handleUpload}
                 disabled={isUploading}
-                className="flex-1 rounded-[var(--radius)] bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70"
+                className="w-full py-3.5 bg-[#0071E3] text-white rounded-full font-medium hover:bg-[#0077ED] transition-colors disabled:opacity-70"
               >
-                {isUploading ? "Uploading..." : "Upload"}
+                {isUploading ? "업로드 중..." : "업로드"}
+              </button>
+              <button
+                onClick={handleClose}
+                disabled={isUploading}
+                className="w-full py-3.5 bg-neutral-100 text-neutral-800 rounded-full font-medium hover:bg-neutral-200 transition-colors disabled:opacity-50"
+              >
+                취소
               </button>
             </div>
           </div>

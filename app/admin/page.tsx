@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminLogin } from "@/components/admin-login";
 import { AdminTable } from "@/components/admin-table";
-import { dummyPhotos } from "@/lib/data";
 import { createClient } from "@/lib/supabase/client";
 import { fetchAllPhotos, isSupabaseConfigured } from "@/lib/photos";
+import { getPhotosLocal } from "@/app/actions";
+import type { Photo } from "@/lib/data";
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [photos, setPhotos] = useState(dummyPhotos);
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "error">(
     "idle"
   );
@@ -17,18 +18,18 @@ export default function AdminPage() {
   const isFetchingRef = useRef(false);
 
   const loadRemotePhotos = useCallback(async () => {
-    if (!isSupabaseConfigured()) {
-      setPhotos(dummyPhotos);
-      setLoadState("idle");
-      return;
-    }
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     setLoadState("loading");
     try {
-      const sb = createClient();
-      const list = await fetchAllPhotos(sb);
-      setPhotos(list);
+      if (!isSupabaseConfigured()) {
+        const list = await getPhotosLocal(false);
+        setPhotos(list);
+      } else {
+        const sb = createClient();
+        const list = await fetchAllPhotos(sb);
+        setPhotos(list);
+      }
       setLoadState("idle");
     } catch {
       setLoadState("error");

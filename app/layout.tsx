@@ -1,21 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Nanum_Myeongjo } from "next/font/google";
 import "./globals.css";
+import { FloatingHearts } from "@/components/floating-hearts";
 
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-sans",
+});
+
+const nanumMyeongjo = Nanum_Myeongjo({
+  weight: ["400", "700", "800"],
+  subsets: ["latin"],
+  variable: "--font-serif",
 });
 
 export const metadata: Metadata = {
-  title: "Photo Gallery",
-  description: "A beautiful wedding photo gallery to upload and share your favorite moments.",
+  title: "Wedding Photo Shoot",
+  description: "Capture and share moments from our special day.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -25,7 +33,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body
+        className={`${nanumMyeongjo.variable} ${inter.variable} font-sans antialiased text-neutral-800 selection:bg-accent/20`}
+      >
+        <FloatingHearts />
         {children}
       </body>
     </html>

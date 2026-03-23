@@ -136,7 +136,7 @@ export async function uploadPhoto(
       src: pub.publicUrl,
       alt,
       storage_path: path,
-      status: "pending",
+      status: "approved", // By default visible
     });
     if (insErr) {
       throw new Error(insErr.message || "DB insert failed.");

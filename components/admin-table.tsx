@@ -2,27 +2,27 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Trash2, ArrowLeft, Check, XCircle } from "lucide-react";
+import { Trash2, ArrowLeft, Eye, EyeOff, Download, X } from "lucide-react";
 import Link from "next/link";
 import type { Photo } from "@/lib/data";
 import { createClient } from "@/lib/supabase/client";
-import {
-  deletePhoto,
-  updatePhotoStatus,
-} from "@/lib/photos";
+import { deletePhoto, updatePhotoStatus } from "@/lib/photos";
+import { deletePhotoLocal, updateStatusLocal } from "@/app/actions";
 
 function StatusBadge({ status }: { status: Photo["status"] }) {
   const styles = {
     approved: "bg-success/10 text-success",
-    rejected: "bg-destructive/10 text-destructive",
+    rejected: "bg-muted text-muted-foreground",
     pending: "bg-accent/10 text-accent",
   };
+  
+  const text = status === "approved" ? "Visible" : status === "rejected" ? "Hidden" : "Pending";
 
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${styles[status]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[status]}`}
     >
-      {status}
+      {text}
     </span>
   );
 }
@@ -35,6 +35,7 @@ interface AdminTableProps {
 export function AdminTable({ photos: initialPhotos, useRemote }: AdminTableProps) {
   const [photos, setPhotos] = useState(initialPhotos);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [viewImage, setViewImage] = useState<string | null>(null);
 
   useEffect(() => {
     setPhotos(initialPhotos);
@@ -44,6 +45,7 @@ export function AdminTable({ photos: initialPhotos, useRemote }: AdminTableProps
     setSyncError(null);
     if (!useRemote) {
       setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
+      await deletePhotoLocal(photo.id);
       return;
     }
     const prev = photos;
@@ -63,6 +65,7 @@ export function AdminTable({ photos: initialPhotos, useRemote }: AdminTableProps
       setPhotos((prev) =>
         prev.map((p) => (p.id === id ? { ...p, status } : p))
       );
+      await updateStatusLocal(id, status);
       return;
     }
     const prev = photos;
@@ -73,6 +76,28 @@ export function AdminTable({ photos: initialPhotos, useRemote }: AdminTableProps
     } catch {
       setPhotos(prev);
       setSyncError("Could not update status. Please try again.");
+    }
+  };
+
+  const toggleVisibility = (photo: Photo) => {
+    const newStatus = photo.status === "approved" ? "rejected" : "approved";
+    void handleStatusChange(photo.id, newStatus);
+  };
+
+  const handleDownload = async (url: string, alt: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = alt || "wedding-photo";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.error("Download failed", e);
     }
   };
 
@@ -113,11 +138,11 @@ export function AdminTable({ photos: initialPhotos, useRemote }: AdminTableProps
         )}
         <div className="overflow-hidden rounded-[var(--radius)] border bg-card">
           {/* Desktop table */}
-          <div className="hidden sm:block">
-            <table className="w-full">
+          <div className="hidden sm:block overflow-x-auto">
+            <table className="w-full whitespace-nowrap">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground w-20">
                     Photo
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -138,7 +163,10 @@ export function AdminTable({ photos: initialPhotos, useRemote }: AdminTableProps
                     className="transition-colors hover:bg-muted/30"
                   >
                     <td className="px-4 py-3">
-                      <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-muted">
+                      <div 
+                        className="relative h-12 w-12 overflow-hidden rounded-lg bg-muted cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => setViewImage(photo.src)}
+                      >
                         <Image
                           src={photo.src}
                           alt={photo.alt}
@@ -160,32 +188,28 @@ export function AdminTable({ photos: initialPhotos, useRemote }: AdminTableProps
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex flex-wrap items-center justify-end gap-2">
-                        {photo.status === "pending" && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleStatusChange(photo.id, "approved")
-                              }
-                              className="inline-flex items-center gap-1 rounded-[var(--radius)] px-2.5 py-1.5 text-xs font-medium text-success transition-colors hover:bg-success/10"
-                              aria-label={`Approve ${photo.alt}`}
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleStatusChange(photo.id, "rejected")
-                              }
-                              className="inline-flex items-center gap-1 rounded-[var(--radius)] px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
-                              aria-label={`Reject ${photo.alt}`}
-                            >
-                              <XCircle className="h-3.5 w-3.5" />
-                              Reject
-                            </button>
-                          </>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => toggleVisibility(photo)}
+                          className="inline-flex items-center gap-1 rounded-[var(--radius)] px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                          aria-label={`Toggle visibility for ${photo.alt}`}
+                        >
+                          {photo.status === "approved" ? (
+                            <><EyeOff className="h-3.5 w-3.5" /> Hide</>
+                          ) : (
+                            <><Eye className="h-3.5 w-3.5" /> Show</>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDownload(photo.src, photo.alt)}
+                          className="inline-flex items-center gap-1 rounded-[var(--radius)] px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+                          aria-label="Download photo"
+                        >
+                          <Download className="h-3.5 w-3.5" /> Download
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => handleDelete(photo)}
@@ -208,14 +232,17 @@ export function AdminTable({ photos: initialPhotos, useRemote }: AdminTableProps
             {photos.map((photo) => (
               <div
                 key={photo.id}
-                className="flex items-center gap-3 px-4 py-3"
+                className="flex items-center gap-3 px-4 py-4"
               >
-                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-muted">
+                <div 
+                  className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted cursor-pointer hover:opacity-80"
+                  onClick={() => setViewImage(photo.src)}
+                >
                   <Image
                     src={photo.src}
                     alt={photo.alt}
                     fill
-                    sizes="56px"
+                    sizes="64px"
                     className="object-cover"
                   />
                 </div>
@@ -227,31 +254,27 @@ export function AdminTable({ photos: initialPhotos, useRemote }: AdminTableProps
                       year: "numeric",
                     })}
                   </p>
-                  <div className="mt-1">
+                  <div className="mt-1 mb-2">
                     <StatusBadge status={photo.status} />
                   </div>
-                  {photo.status === "pending" && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleStatusChange(photo.id, "approved")
-                        }
-                        className="rounded-[var(--radius)] bg-success/10 px-2 py-1 text-xs font-medium text-success"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          handleStatusChange(photo.id, "rejected")
-                        }
-                        className="rounded-[var(--radius)] bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleVisibility(photo)}
+                      className="rounded-[var(--radius)] bg-muted px-2 py-1.5 text-xs font-medium text-foreground flex items-center gap-1"
+                    >
+                      {photo.status === "approved" ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      {photo.status === "approved" ? "Hide" : "Show"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDownload(photo.src, photo.alt)}
+                      className="rounded-[var(--radius)] bg-muted px-2 py-1.5 text-xs font-medium text-foreground flex items-center gap-1"
+                    >
+                      <Download className="h-3 w-3" />
+                      Save
+                    </button>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -274,6 +297,26 @@ export function AdminTable({ photos: initialPhotos, useRemote }: AdminTableProps
           )}
         </div>
       </main>
+
+      {/* Image Viewer Modal */}
+      {viewImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <button
+            onClick={() => setViewImage(null)}
+            className="absolute right-4 top-4 z-50 rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <div className="relative h-full w-full max-h-[85vh] max-w-5xl rounded-lg overflow-hidden">
+            <Image
+              src={viewImage}
+              alt="Full view"
+              fill
+              className="object-contain"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

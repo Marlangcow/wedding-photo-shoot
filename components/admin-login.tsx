@@ -14,8 +14,8 @@ export function AdminLogin({ onLogin }: AdminLoginProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const expected =
-      process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "admin";
-    if (password === expected) {
+      (process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "").trim() || "admin";
+    if (password.trim() === expected) {
       onLogin();
     } else {
       setError(true);

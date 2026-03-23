@@ -109,8 +109,13 @@ export function UploadModal({
       const message =
         err instanceof Error && err.message
           ? err.message
-          : "Upload failed. Check your connection and try again.";
-      setUploadError(message);
+          : typeof err === "object" && err && "message" in err
+            ? String((err as { message?: unknown }).message ?? "")
+            : "";
+      setUploadError(
+        message ||
+          "Upload failed. Check your connection, bucket policy, and try again."
+      );
       setIsUploading(false);
     }
   }, [file, onUploadComplete, reset, onClose]);

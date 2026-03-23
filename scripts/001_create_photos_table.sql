@@ -1,4 +1,6 @@
 -- Create photos table for storing wedding photo metadata
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE IF NOT EXISTS photos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   src TEXT NOT NULL,

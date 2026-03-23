@@ -2,6 +2,9 @@
 
 ALTER TABLE photos ADD COLUMN IF NOT EXISTS storage_path TEXT;
 
+-- Storage RLS (policies only take effect when RLS is enabled)
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
 -- Public bucket for gallery images (10 MB max; adjust as needed)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (

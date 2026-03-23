@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AdminLogin } from "@/components/admin-login";
 import { AdminTable } from "@/components/admin-table";
 import { dummyPhotos } from "@/lib/data";
@@ -14,12 +14,16 @@ export default function AdminPage() {
     "idle"
   );
 
+  const isFetchingRef = useRef(false);
+
   const loadRemotePhotos = useCallback(async () => {
     if (!isSupabaseConfigured()) {
       setPhotos(dummyPhotos);
       setLoadState("idle");
       return;
     }
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     setLoadState("loading");
     try {
       const sb = createClient();
@@ -28,6 +32,8 @@ export default function AdminPage() {
       setLoadState("idle");
     } catch {
       setLoadState("error");
+    } finally {
+      isFetchingRef.current = false;
     }
   }, []);
 
@@ -35,6 +41,17 @@ export default function AdminPage() {
     setIsAuthenticated(true);
     void loadRemotePhotos();
   }, [loadRemotePhotos]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!isSupabaseConfigured()) return;
+
+    const id = window.setInterval(() => {
+      void loadRemotePhotos();
+    }, 15000);
+
+    return () => window.clearInterval(id);
+  }, [isAuthenticated, loadRemotePhotos]);
 
   if (!isAuthenticated) {
     return <AdminLogin onLogin={handleLogin} />;

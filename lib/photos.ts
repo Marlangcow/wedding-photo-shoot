@@ -118,13 +118,18 @@ export async function uploadPhoto(
         contentType: file.type || "image/jpeg",
         upsert: false,
       });
-    if (upErr) throw upErr;
+    if (upErr) {
+      throw new Error(upErr.message || "Storage upload failed.");
+    }
     uploadedPath = path;
     onProgress(55);
 
     const { data: pub } = supabase.storage
       .from(PHOTOS_BUCKET)
       .getPublicUrl(path);
+    if (!pub?.publicUrl) {
+      throw new Error("Could not generate public URL for uploaded image.");
+    }
 
     const alt = file.name.slice(0, 200);
     const { error: insErr } = await supabase.from("photos").insert({
@@ -133,7 +138,9 @@ export async function uploadPhoto(
       storage_path: path,
       status: "pending",
     });
-    if (insErr) throw insErr;
+    if (insErr) {
+      throw new Error(insErr.message || "DB insert failed.");
+    }
     onProgress(100);
   } catch (e) {
     if (uploadedPath) {
@@ -143,7 +150,15 @@ export async function uploadPhoto(
         /* best-effort cleanup */
       }
     }
-    throw e;
+    const message =
+      e instanceof Error
+        ? e.message
+        : typeof e === "object" && e && "message" in e
+          ? String((e as { message?: unknown }).message ?? "")
+          : "";
+    throw new Error(
+      message || "Upload failed. Check storage/db policies and try again."
+    );
   }
 }
 

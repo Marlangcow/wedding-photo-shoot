@@ -18,6 +18,8 @@ type PhotoRow = {
   src: string;
   alt: string | null;
   upload_date: string;
+  captured_at: string | null;
+  metadata: any | null;
   status: string;
   storage_path: string | null;
 };
@@ -33,6 +35,8 @@ export function mapPhotoRow(row: PhotoRow): Photo {
     src: row.src,
     alt: row.alt ?? "",
     uploadDate: row.upload_date,
+    capturedAt: row.captured_at,
+    metadata: row.metadata,
     status: assertStatus(row.status),
     storagePath: row.storage_path,
   };
@@ -54,8 +58,9 @@ export async function fetchApprovedPhotos(
     Promise.resolve(
       supabase
         .from("photos")
-        .select("id, src, alt, upload_date, status, storage_path")
+        .select("id, src, alt, upload_date, captured_at, metadata, status, storage_path")
         .eq("status", "approved")
+        .order("captured_at", { ascending: false, nullsFirst: false })
         .order("upload_date", { ascending: false })
     ),
     QUERY_MS
@@ -71,7 +76,8 @@ export async function fetchAllPhotos(
     Promise.resolve(
       supabase
         .from("photos")
-        .select("id, src, alt, upload_date, status, storage_path")
+        .select("id, src, alt, upload_date, captured_at, metadata, status, storage_path")
+        .order("captured_at", { ascending: false, nullsFirst: false })
         .order("upload_date", { ascending: false })
     ),
     QUERY_MS
@@ -101,7 +107,8 @@ function safeExt(filename: string): string {
 export async function uploadPhoto(
   supabase: SupabaseClient,
   file: File,
-  onProgress: (n: number) => void
+  onProgress: (n: number) => void,
+  metadata: { capturedAt?: Date; raw?: any } = {}
 ): Promise<void> {
   validateImageFile(file);
   onProgress(5);
@@ -119,7 +126,9 @@ export async function uploadPhoto(
         upsert: false,
       });
     if (upErr) {
-      throw new Error(upErr.message || "Storage upload failed.");
+      const storageMsg = `Storage Error: ${upErr.message}`;
+      console.error(storageMsg, upErr);
+      throw new Error(storageMsg);
     }
     uploadedPath = path;
     onProgress(55);
@@ -132,14 +141,35 @@ export async function uploadPhoto(
     }
 
     const alt = file.name.slice(0, 200);
-    const { error: insErr } = await supabase.from("photos").insert({
+    const insertData: any = {
       src: pub.publicUrl,
       alt,
       storage_path: path,
       status: "approved", // By default visible
-    });
-    if (insErr) {
-      throw new Error(insErr.message || "DB insert failed.");
+      captured_at: metadata.capturedAt?.toISOString() || null,
+      metadata: metadata.raw || null,
+    };
+
+    const { error: insErr } = await supabase.from("photos").insert(insertData);
+    
+    // Fallback: If columns captured_at or metadata are missing (error 42703), retry without them
+    if (insErr && insErr.code === "42703") {
+      console.warn("Metadata columns missing, retrying without metadata...");
+      const { error: fallbackErr } = await supabase.from("photos").insert({
+        src: pub.publicUrl,
+        alt,
+        storage_path: path,
+        status: "approved",
+      });
+      if (fallbackErr) {
+        const dbMsg = `DB Fallback Error: ${fallbackErr.message}`;
+        console.error(dbMsg, fallbackErr);
+        throw new Error(dbMsg);
+      }
+    } else if (insErr) {
+      const dbMsg = `DB Error: ${insErr.message} (Code: ${insErr.code})`;
+      console.error(dbMsg, insErr);
+      throw new Error(dbMsg);
     }
     onProgress(100);
   } catch (e) {

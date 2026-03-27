@@ -1,6 +1,8 @@
 -- Run after 001_create_photos_table.sql (Supabase SQL Editor)
 
 ALTER TABLE photos ADD COLUMN IF NOT EXISTS storage_path TEXT;
+ALTER TABLE photos ADD COLUMN IF NOT EXISTS captured_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE photos ADD COLUMN IF NOT EXISTS metadata JSONB;
 
 -- Storage RLS (policies only take effect when RLS is enabled)
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;

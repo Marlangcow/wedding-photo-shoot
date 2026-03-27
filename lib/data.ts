@@ -3,6 +3,8 @@ export interface Photo {
   src: string;
   alt: string;
   uploadDate: string;
+  capturedAt?: string | null;
+  metadata?: any | null;
   status: "approved" | "rejected" | "pending";
   /** Supabase Storage object path when uploaded to bucket `wedding-photos` */
   storagePath?: string | null;

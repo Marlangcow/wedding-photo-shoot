@@ -91,13 +91,14 @@ export function PhotoGrid({ photos }: { photos: Photo[] }) {
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <div className="columns-2 gap-4 sm:columns-3 sm:gap-6 space-y-4 sm:space-y-6">
         {currentPhotos.map((photo, i) => (
-          <PhotoCard 
-            key={photo.id} 
-            photo={photo} 
-            onClick={() => setViewingIndex(startIndex + i)} 
-          />
+          <div key={photo.id} className="break-inside-avoid">
+            <PhotoCard 
+              photo={photo} 
+              onClick={() => setViewingIndex(startIndex + i)} 
+            />
+          </div>
         ))}
       </div>
 
@@ -159,7 +160,7 @@ export function PhotoGrid({ photos }: { photos: Photo[] }) {
           {viewingIndex > 0 && (
             <button
               onClick={(e) => { e.stopPropagation(); handlePrevious(); }}
-              className="absolute left-4 top-1/2 z-50 -translate-y-1/2 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20 sm:left-8"
+              className="absolute left-4 top-1/2 z-50 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white backdrop-blur-md transition-colors hover:bg-black/80 sm:left-8"
               aria-label="Previous photo"
             >
               <ChevronLeft className="h-8 w-8" />
@@ -169,7 +170,7 @@ export function PhotoGrid({ photos }: { photos: Photo[] }) {
           {viewingIndex < photos.length - 1 && (
             <button
               onClick={(e) => { e.stopPropagation(); handleNext(); }}
-              className="absolute right-4 top-1/2 z-50 -translate-y-1/2 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20 sm:right-8"
+              className="absolute right-4 top-1/2 z-50 -translate-y-1/2 rounded-full bg-black/50 p-3 text-white backdrop-blur-md transition-colors hover:bg-black/80 sm:right-8"
               aria-label="Next photo"
             >
               <ChevronRight className="h-8 w-8" />
